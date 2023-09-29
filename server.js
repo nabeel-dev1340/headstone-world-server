@@ -384,7 +384,6 @@ app.post(
 // endpoint to save work order
 app.post("/work-order", upload.single("workOrder"), async (req, res) => {
   try {
-    const { invoiceNo } = req.body;
     const workOrder = req.file;
 
     // Define the local directory paths
@@ -406,6 +405,60 @@ app.post("/work-order", upload.single("workOrder"), async (req, res) => {
 
     // If there's an error, respond with a 500 status code
     res.status(500).json({ error: "Internal Server Error." });
+  }
+});
+
+//get work orders
+app.get("/work-orders", async (req, res) => {
+  try {
+    const headstoneName = req.query.headstoneName;
+    const regex = /INV-\d+-\d+/;
+
+    if (!headstoneName) {
+      return res
+        .status(400)
+        .json({ error: "Headstone name is required as a query parameter." });
+    }
+
+    const uploadsDir = path.join(__dirname, "uploads", "Work Orders");
+
+    // Read all files in the "work-orders" directory
+    fs.readdir(uploadsDir, (err, files) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to read directory." });
+      }
+
+      // Filter the files based on the headstone name (as a wildcard)
+      const matchingFiles = files.filter(
+        (file) =>
+          file.toLowerCase().includes(headstoneName.toLowerCase()) &&
+          file.endsWith(".png")
+      );
+
+      if (matchingFiles.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "No matching work orders found." });
+      }
+
+      // Send the matching file names, their paths, and Base64-encoded image data
+      const matchingFilesInfo = matchingFiles.map((file) => {
+        const filePath = path.join(uploadsDir, file);
+        const data = fs.readFileSync(filePath);
+        const base64Image = data.toString("base64");
+
+        return {
+          headstoneName: file.split("..")[0],
+          invoiceNo: file.match(regex)[0],
+          path: path.join("/uploads/work-orders", file),
+          image: `data:image/png;base64,${base64Image}`,
+        };
+      });
+
+      res.status(200).json(matchingFilesInfo);
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error." });
   }
 });
 
